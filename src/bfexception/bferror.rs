@@ -18,8 +18,8 @@ pub mod error {
 
     #[derive(Debug, thiserror::Error)]
     pub enum RuntimeErrorKind {
-        // #[error("Out of memory")]
-        // OutOfMemory,
+        // #[error("IO Error")]
+        // IOError,
         #[error("Out of range")]
         OutOfRange,
     }
