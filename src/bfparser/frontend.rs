@@ -61,6 +61,7 @@ pub mod ir {
     use crate::bfparser::frontend::parser::TOKEN;
     use std::cell::Ref;
     use std::cell::RefCell;
+    use std::rc::Rc;
 
     #[derive(Debug, Clone, PartialEq, Eq)]
     pub enum BFIR {
@@ -79,15 +80,10 @@ pub mod ir {
         result: RefCell<Vec<BFIR>>,
     }
 
-    static IR_STRUCT: IRStruct = IRStruct {
-        tokens: RefCell::new(vec![]),
-        tmp_results: RefCell::new(vec![]),
-        result: RefCell::new(vec![]),
-    };
-
     trait IRInterface {
+        fn new(tokens: &Vec<TOKEN>) -> Self;
         fn init(&self, tokens: &Vec<TOKEN>);
-        fn clear(&self, with_result: bool);
+        fn clear(&self, clear_result: bool, clear_tokens: bool);
         fn get_tokens(&self) -> Ref<'_, Vec<TOKEN>>;
         fn get_result(&self) -> Ref<'_, Vec<BFIR>>;
         fn stack_start(&self);
@@ -95,25 +91,33 @@ pub mod ir {
         fn tmp_push(&self, ir: BFIR) -> Result<(), bferror::error::RuntimeError>;
     }
 
-    unsafe impl Sync for IRStruct {}
-
     impl IRInterface for IRStruct {
+        fn new(tokens: &Vec<TOKEN>) -> Self {
+            IRStruct {
+                tokens: RefCell::new(tokens.clone()),
+                tmp_results: RefCell::new(vec![]),
+                result: RefCell::new(vec![]),
+            }
+        }
+
         fn init(&self, tokens: &Vec<TOKEN>) {
-            self.clear(true);
+            self.clear(true, true);
             tokens
                 .iter()
                 .for_each(|x| self.tokens.borrow_mut().push(x.clone()));
         }
 
-        fn clear(&self, with_result: bool) {
-            self.tokens.borrow_mut().clear();
-            self.tokens.borrow_mut().shrink_to_fit();
-            self.tmp_results.borrow_mut().clear();
-            self.tmp_results.borrow_mut().shrink_to_fit();
-            if with_result {
+        fn clear(&self, clear_result: bool, clear_tokens: bool) {
+            if clear_tokens {
+                self.tokens.borrow_mut().clear();
+            }
+            if clear_result {
                 self.result.borrow_mut().clear();
             }
+            self.tmp_results.borrow_mut().clear();
+            self.tokens.borrow_mut().shrink_to_fit();
             self.result.borrow_mut().shrink_to_fit();
+            self.tmp_results.borrow_mut().shrink_to_fit();
         }
 
         fn get_tokens(&self) -> Ref<'_, Vec<TOKEN>> {
@@ -140,7 +144,7 @@ pub mod ir {
             let len = self.tmp_results.borrow().len();
             if len == 0 {
                 self.result.borrow_mut().push(BFIR::Loop(last));
-                self.clear(false);
+                self.clear(false, true);
                 return Ok(());
             }
             self.tmp_results
@@ -170,9 +174,12 @@ pub mod ir {
         }
     }
 
-    fn reduce_duplicate_updown(mut index: usize) -> Result<usize, bferror::error::RuntimeError> {
+    fn reduce_duplicate_updown(
+        mut index: usize,
+        ir_struct: Rc<IRStruct>,
+    ) -> Result<usize, bferror::error::RuntimeError> {
         let mut count: i8 = 0;
-        let tokens = IR_STRUCT.get_tokens();
+        let tokens = ir_struct.get_tokens();
         let len = tokens.len();
         while index < len {
             match tokens[index] {
@@ -188,16 +195,19 @@ pub mod ir {
             }
         }
         if count > 0 {
-            IR_STRUCT.tmp_push(BFIR::Add(count as u8))?;
+            ir_struct.tmp_push(BFIR::Add(count as u8))?;
         } else if count < 0 {
-            IR_STRUCT.tmp_push(BFIR::Sub((-count) as u8))?;
+            ir_struct.tmp_push(BFIR::Sub((-count) as u8))?;
         }
         return Ok(index);
     }
 
-    fn reduce_duplicate_leftright(mut index: usize) -> Result<usize, bferror::error::RuntimeError> {
+    fn reduce_duplicate_leftright(
+        mut index: usize,
+        ir_struct: Rc<IRStruct>,
+    ) -> Result<usize, bferror::error::RuntimeError> {
         let mut count = 0;
-        let tokens = IR_STRUCT.get_tokens();
+        let tokens = ir_struct.get_tokens();
         let len = tokens.len();
         while index < len {
             match tokens[index] {
@@ -213,24 +223,27 @@ pub mod ir {
             }
         }
         if count > 0 {
-            IR_STRUCT.tmp_push(BFIR::MoveRight(count as u32))?;
+            ir_struct.tmp_push(BFIR::MoveRight(count as u32))?;
         } else if count < 0 {
-            IR_STRUCT.tmp_push(BFIR::MoveLeft((-count) as u32))?;
+            ir_struct.tmp_push(BFIR::MoveLeft((-count) as u32))?;
         }
         return Ok(index);
     }
 
-    fn reduce_io(mut index: usize) -> Result<usize, bferror::error::RuntimeError> {
-        let tokens = IR_STRUCT.get_tokens();
+    fn reduce_io(
+        mut index: usize,
+        ir_struct: Rc<IRStruct>,
+    ) -> Result<usize, bferror::error::RuntimeError> {
+        let tokens = ir_struct.get_tokens();
         let len = tokens.len();
         while index < len {
             match tokens[index] {
                 TOKEN::Input => {
-                    IR_STRUCT.tmp_push(BFIR::Input)?;
+                    ir_struct.tmp_push(BFIR::Input)?;
                     index += 1;
                 }
                 TOKEN::Output => {
-                    IR_STRUCT.tmp_push(BFIR::Output)?;
+                    ir_struct.tmp_push(BFIR::Output)?;
                     index += 1;
                 }
                 _ => break,
@@ -239,54 +252,60 @@ pub mod ir {
         return Ok(index);
     }
 
-    fn reduce_loop(mut index: usize) -> Result<usize, bferror::error::RuntimeError> {
-        let tokens = IR_STRUCT.get_tokens();
+    fn reduce_loop(
+        mut index: usize,
+        ir_struct: Rc<IRStruct>,
+    ) -> Result<usize, bferror::error::RuntimeError> {
+        let tokens = ir_struct.get_tokens();
         let len = tokens.len();
         index += 1; // jump over '['
-        IR_STRUCT.stack_start();
+        ir_struct.stack_start();
         while index < len {
             match tokens[index] {
                 TOKEN::RightLoop => {
                     index += 1;
                     break;
                 }
-                _ => match normal(index) {
+                _ => match normal(index, ir_struct.clone()) {
                     Ok(i) => index = i,
                     Err(e) => return Err(e),
                 },
             }
         }
-        IR_STRUCT.stack_end()?;
+        ir_struct.stack_end()?;
         return Ok(index);
     }
 
-    fn normal(mut index: usize) -> Result<usize, bferror::error::RuntimeError> {
-        match IR_STRUCT.get_tokens()[index] {
-            TOKEN::Increment => match reduce_duplicate_updown(index) {
+    fn normal(
+        mut index: usize,
+        ir_struct: Rc<IRStruct>,
+    ) -> Result<usize, bferror::error::RuntimeError> {
+        match ir_struct.get_tokens()[index] {
+            TOKEN::Increment => match reduce_duplicate_updown(index, ir_struct.clone()) {
                 Ok(i) => index = i,
                 Err(e) => return Err(e),
             },
-            TOKEN::Decrement => match reduce_duplicate_updown(index) {
+            TOKEN::Decrement => match reduce_duplicate_updown(index, ir_struct.clone()) {
                 Ok(i) => index = i,
                 Err(e) => return Err(e),
             },
-            TOKEN::MoveRight => match reduce_duplicate_leftright(index) {
+            TOKEN::MoveRight => match reduce_duplicate_leftright(index, ir_struct.clone()) {
                 Ok(i) => index = i,
                 Err(e) => return Err(e),
             },
-            TOKEN::MoveLeft => match reduce_duplicate_leftright(index) {
+            TOKEN::MoveLeft => match reduce_duplicate_leftright(index, ir_struct.clone()) {
                 Ok(i) => index = i,
                 Err(e) => return Err(e),
             },
-            TOKEN::Input => match reduce_io(index) {
+            TOKEN::Input => match reduce_io(index, ir_struct.clone()) {
                 Ok(i) => index = i,
                 Err(e) => return Err(e),
             },
-            TOKEN::Output => match reduce_io(index) {
+            TOKEN::Output => match reduce_io(index, ir_struct.clone()) {
                 Ok(i) => index = i,
                 Err(e) => return Err(e),
             },
-            TOKEN::LeftLoop => match reduce_loop(index) {
+            TOKEN::LeftLoop => match reduce_loop(index, ir_struct.clone()) {
                 Ok(i) => index = i,
                 Err(e) => return Err(e),
             },
@@ -301,17 +320,17 @@ pub mod ir {
     }
 
     pub fn transfer_to_ir(tokens: &Vec<TOKEN>) -> Result<Vec<BFIR>, bferror::error::RuntimeError> {
-        IR_STRUCT.init(tokens);
+        let ir_struct = Rc::new(IRStruct::new(tokens));
         let mut index = 0;
         let len = tokens.len();
-        IR_STRUCT.stack_start();
+        ir_struct.stack_start();
         while index < len {
-            match normal(index) {
+            match normal(index, ir_struct.clone()) {
                 Ok(i) => index = i,
                 Err(e) => return Err(e),
             }
         }
-        IR_STRUCT.stack_end()?;
-        return Ok(IR_STRUCT.get_result().clone());
+        ir_struct.stack_end()?;
+        return Ok(ir_struct.get_result().clone());
     }
 }
