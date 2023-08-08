@@ -18,10 +18,12 @@ pub mod error {
 
     #[derive(Debug, thiserror::Error)]
     pub enum RuntimeErrorKind {
-        // #[error("IO Error")]
-        // IOError,
+        #[error("IO Error")]
+        IO,
         #[error("Out of range")]
         OutOfRange,
+        #[error("Memory error")]
+        Memory,
     }
 
     #[derive(Debug)]
