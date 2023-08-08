@@ -2,8 +2,9 @@ mod bfexception;
 mod bfparser;
 mod bfvm;
 
-fn main() {
-    let a = crate::bfparser::frontend::parser::parse("+++-,.[++[--][,.]]");
+fn test(str: &str)
+{
+    let a = crate::bfparser::frontend::parser::parse(str);
     println!("{:?}", a);
     if a.is_err() {
         println!("{:?}", a.as_ref().unwrap_err());
@@ -15,4 +16,16 @@ fn main() {
         return;
     }
     println!("{:?}", b.unwrap());
+}
+
+fn main() {
+    test("+++-,.[++[--][,.]]");
+    test("+++-,.[++[--],.]");
+}
+
+#[test]
+fn test_main()
+{
+    test("+++-,.[++[--][,.]]");
+    test("+++-,.[++[--],.]");
 }

@@ -87,6 +87,7 @@ pub mod ir {
 
     trait IRInterface {
         fn init(&self, tokens: &Vec<TOKEN>);
+        fn clear(&self, with_result: bool);
         fn get_tokens(&self) -> Ref<'_, Vec<TOKEN>>;
         fn get_result(&self) -> Ref<'_, Vec<BFIR>>;
         fn stack_start(&self);
@@ -98,11 +99,21 @@ pub mod ir {
 
     impl IRInterface for IRStruct {
         fn init(&self, tokens: &Vec<TOKEN>) {
-            self.tokens.borrow_mut().clear();
+            self.clear(true);
             tokens
                 .iter()
                 .for_each(|x| self.tokens.borrow_mut().push(x.clone()));
-            self.result.borrow_mut().clear();
+        }
+
+        fn clear(&self, with_result: bool) {
+            self.tokens.borrow_mut().clear();
+            self.tokens.borrow_mut().shrink_to_fit();
+            self.tmp_results.borrow_mut().clear();
+            self.tmp_results.borrow_mut().shrink_to_fit();
+            if with_result {
+                self.result.borrow_mut().clear();
+            }
+            self.result.borrow_mut().shrink_to_fit();
         }
 
         fn get_tokens(&self) -> Ref<'_, Vec<TOKEN>> {
@@ -129,6 +140,7 @@ pub mod ir {
             let len = self.tmp_results.borrow().len();
             if len == 0 {
                 self.result.borrow_mut().push(BFIR::Loop(last));
+                self.clear(false);
                 return Ok(());
             }
             self.tmp_results
