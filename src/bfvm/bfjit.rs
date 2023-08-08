@@ -18,19 +18,21 @@ pub mod vm {
         output: Box<dyn Write>,
     }
 
-    trait VMInterface<T> {
+    trait VMInterface {
+        type VMType;
         fn new(
             code: dynasmrt::ExecutableBuffer,
             pc: dynasmrt::AssemblyOffset,
             input: Box<dyn Read>,
             output: Box<dyn Write>,
-        ) -> Result<T, bferror::error::RuntimeError>;
+        ) -> Result<Self::VMType, bferror::error::RuntimeError>;
         unsafe fn get_byte(&mut self, ptr: *mut u8) -> Result<(), bferror::error::RuntimeError>;
         unsafe fn put_byte(&mut self, ptr: *const u8) -> Result<(), bferror::error::RuntimeError>;
         fn run(&mut self);
     }
 
-    impl VMInterface<VMStruct> for VMStruct {
+    impl VMInterface for VMStruct {
+        type VMType = VMStruct;
         fn new(
             code: dynasmrt::ExecutableBuffer,
             pc: dynasmrt::AssemblyOffset,
