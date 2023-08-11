@@ -1,5 +1,5 @@
 pub mod parser {
-    use crate::bfexception::bferror;
+    use crate::bftype::bferror;
     #[derive(Debug, Clone, Copy, PartialEq, Eq)]
     pub enum TOKEN {
         Increment, // +
@@ -57,7 +57,7 @@ pub mod parser {
 }
 
 pub mod ir {
-    use crate::bfexception::bferror;
+    use crate::bftype::bferror;
     use crate::bfparser::frontend::parser::TOKEN;
     use std::cell::Ref;
     use std::cell::RefCell;

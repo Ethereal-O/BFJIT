@@ -1,12 +1,9 @@
 pub mod vm {
+    use dynasmrt::relocations::Relocation;
+    use dynasmrt::{Assembler, DynasmApi};
     use std::io::{Read, Write};
-    use std::path::Path;
-    use std::ptr;
 
-    use dynasm::dynasm;
-    use dynasmrt::{DynasmApi, DynasmLabelApi};
-
-    use crate::bfexception::bferror;
+    use crate::bftype::bferror;
 
     const MEMORY_SIZE: usize = 30000;
 
@@ -20,9 +17,8 @@ pub mod vm {
 
     trait VMInterface {
         type VMType;
-        fn new(
-            code: dynasmrt::ExecutableBuffer,
-            pc: dynasmrt::AssemblyOffset,
+        fn new<T: Relocation + std::fmt::Debug>(
+            ops: Assembler<T>,
             input: Box<dyn Read>,
             output: Box<dyn Write>,
         ) -> Result<Self::VMType, bferror::error::RuntimeError>;
@@ -33,15 +29,15 @@ pub mod vm {
 
     impl VMInterface for VMStruct {
         type VMType = VMStruct;
-        fn new(
-            code: dynasmrt::ExecutableBuffer,
-            pc: dynasmrt::AssemblyOffset,
+        fn new<T: Relocation + std::fmt::Debug>(
+            ops: Assembler<T>,
             input: Box<dyn Read>,
             output: Box<dyn Write>,
         ) -> Result<Self, bferror::error::RuntimeError> {
+            let pc = ops.offset();
             let memory = vec![0; MEMORY_SIZE].into_boxed_slice();
             Ok(Self {
-                code,
+                code: ops.finalize().unwrap(),
                 pc,
                 memory,
                 input,
@@ -77,13 +73,6 @@ pub mod vm {
             }
         }
 
-        fn run(&mut self) {
-            let mut ops = dynasmrt::x64::Assembler::new();
-            // dynasm!(ops;push rax
-            //     ;ops
-            //     ;ops);
-            // std::mem::transmute
-            todo!()
-        }
+        fn run(&mut self) {}
     }
 }

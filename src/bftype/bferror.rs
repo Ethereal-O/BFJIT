@@ -24,6 +24,8 @@ pub mod error {
         OutOfRange,
         #[error("Memory error")]
         Memory,
+        #[error("Unknown error")]
+        Unknown,
     }
 
     #[derive(Debug)]
