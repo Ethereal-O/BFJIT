@@ -24,9 +24,15 @@ fn test(str: &str) {
         return;
     }
     println!("{:?}", c.as_ref().unwrap());
+    let d= crate::bfvm::bfjit::vm::VMStruct::new(c.unwrap(), Box::new(std::io::stdin()), Box::new(std::io::stdout()));
+    if d.is_err() {
+        println!("{:?}", "VMStruct::new error");
+        return;
+    }
+    d.unwrap().run();
 }
 
 fn main() {
     test("+++-,.[++[--][,.]]");
-    test("+++-,.[++[--],.]");
+    // test("+++-,.[++[--],.]");
 }

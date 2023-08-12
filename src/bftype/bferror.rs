@@ -2,6 +2,7 @@ pub mod error {
     use std::fmt;
 
     #[derive(Debug, thiserror::Error)]
+    #[allow(dead_code)]
     pub enum CompileErrorKind {
         #[error("Unclosed left bracket")]
         UnclosedLeftBracket,
@@ -9,14 +10,8 @@ pub mod error {
         UnexpectedRightBracket,
     }
 
-    #[derive(Debug)]
-    pub struct CompileError {
-        pub line: u32,
-        pub col: u32,
-        pub kind: CompileErrorKind,
-    }
-
     #[derive(Debug, thiserror::Error)]
+    #[allow(dead_code)]
     pub enum RuntimeErrorKind {
         #[error("IO Error")]
         IO,
@@ -26,6 +21,13 @@ pub mod error {
         Memory,
         #[error("Unknown error")]
         Unknown,
+    }
+
+    #[derive(Debug)]
+    pub struct CompileError {
+        pub line: u32,
+        pub col: u32,
+        pub kind: CompileErrorKind,
     }
 
     #[derive(Debug)]

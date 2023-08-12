@@ -57,8 +57,8 @@ pub mod parser {
 }
 
 pub mod ir {
-    use crate::bftype::bferror;
     use crate::bfparser::frontend::parser::TOKEN;
+    use crate::bftype::bferror;
     use std::cell::Ref;
     use std::cell::RefCell;
     use std::rc::Rc;
@@ -143,7 +143,7 @@ pub mod ir {
                 })?;
             let len = self.tmp_results.borrow().len();
             if len == 0 {
-                self.result.borrow_mut().push(BFIR::Loop(last));
+                self.result.borrow_mut().clone_from(&last.borrow());
                 self.clear(false, true);
                 return Ok(());
             }

@@ -15,37 +15,19 @@ pub mod vm {
         output: Box<dyn Write>,
     }
 
-    trait VMInterface {
+    pub trait VMInterface {
         type VMType;
-        fn new<T: Relocation + std::fmt::Debug>(
-            ops: Assembler<T>,
-            input: Box<dyn Read>,
-            output: Box<dyn Write>,
-        ) -> Result<Self::VMType, bferror::error::RuntimeError>;
-        unsafe fn get_byte(&mut self, ptr: *mut u8) -> Result<(), bferror::error::RuntimeError>;
-        unsafe fn put_byte(&mut self, ptr: *const u8) -> Result<(), bferror::error::RuntimeError>;
-        fn run(&mut self);
     }
 
     impl VMInterface for VMStruct {
         type VMType = VMStruct;
-        fn new<T: Relocation + std::fmt::Debug>(
-            ops: Assembler<T>,
-            input: Box<dyn Read>,
-            output: Box<dyn Write>,
-        ) -> Result<Self, bferror::error::RuntimeError> {
-            let pc = ops.offset();
-            let memory = vec![0; MEMORY_SIZE].into_boxed_slice();
-            Ok(Self {
-                code: ops.finalize().unwrap(),
-                pc,
-                memory,
-                input,
-                output,
-            })
-        }
+    }
 
-        unsafe fn get_byte(&mut self, ptr: *mut u8) -> Result<(), bferror::error::RuntimeError> {
+    impl VMStruct {
+        pub unsafe fn get_byte(
+            &mut self,
+            ptr: *mut u8,
+        ) -> Result<(), bferror::error::RuntimeError> {
             let mut buf = [0_u8];
             match self.input.read(&mut buf) {
                 Ok(1) => {
@@ -61,7 +43,10 @@ pub mod vm {
             }
         }
 
-        unsafe fn put_byte(&mut self, ptr: *const u8) -> Result<(), bferror::error::RuntimeError> {
+        pub unsafe fn put_byte(
+            &mut self,
+            ptr: *const u8,
+        ) -> Result<(), bferror::error::RuntimeError> {
             match self.output.write(&[*ptr]) {
                 Ok(1) => return Ok(()),
                 _ => {
@@ -73,6 +58,22 @@ pub mod vm {
             }
         }
 
-        fn run(&mut self) {}
+        pub fn new<T: Relocation + std::fmt::Debug>(
+            ops: Assembler<T>,
+            input: Box<dyn Read>,
+            output: Box<dyn Write>,
+        ) -> Result<Self, bferror::error::RuntimeError> {
+            let pc = ops.offset();
+            let memory = vec![0; MEMORY_SIZE].into_boxed_slice();
+            Ok(Self {
+                code: ops.finalize().unwrap(),
+                pc,
+                memory,
+                input,
+                output,
+            })
+        }
+
+        pub fn run(&mut self) {}
     }
 }
