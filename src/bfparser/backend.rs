@@ -14,13 +14,6 @@ pub mod codegen {
         irs: &Vec<BFIR>,
         mut ops: Box<Assembler<X64Relocation>>,
     ) -> Box<Assembler<X64Relocation>> {
-        dynasm!(ops
-            ; push rax
-            ; mov r12, rdi   // save this
-            ; mov r13, rsi   // save memory_start
-            ; mov r14, rdx   // save memory_end
-            ; mov rcx, rsi   // ptr = memory_start
-        );
         let mut index = 0;
         let len = irs.len();
         while index < len {
@@ -61,7 +54,7 @@ pub mod codegen {
                         ; mov  r15, rcx         // save ptr
                         ; mov  rdi, r12
                         ; mov  rsi, rcx         // arg0: this, arg1: ptr
-                        ; mov  rax, QWORD vm::VMStruct::get_byte as _
+                        ; mov  rax, QWORD vm::VMStruct::put_x64_byte as _
                         ; call rax              // getbyte(this, ptr)
                         ; test rax, rax
                         ; jnz  ->io_error       // jmp if rax != 0
@@ -74,7 +67,7 @@ pub mod codegen {
                         ; mov  r15, rcx         // save ptr
                         ; mov  rdi, r12
                         ; mov  rsi, rcx         // arg0: this, arg1: ptr
-                        ; mov  rax, QWORD vm::VMStruct::put_byte as _
+                        ; mov  rax, QWORD vm::VMStruct::get_x64_byte as _
                         ; call rax              // putbyte(this, ptr)
                         ; test rax, rax
                         ; jnz  ->io_error       // jmp if rax != 0
@@ -113,7 +106,26 @@ pub mod codegen {
             });
         }
         let mut ops_ptr = Box::new(ops.unwrap());
+        dynasm!(ops_ptr
+            ; push rax
+            ; mov r12, rdi   // save this
+            ; mov r13, rsi   // save memory_start
+            ; mov r14, rdx   // save memory_end
+            ; mov rcx, rsi   // ptr = memory_start
+        );
         ops_ptr = gen_x64_code_normal(&irs, ops_ptr);
+        dynasm!(ops_ptr
+            ; xor rax, rax
+            ; jmp >exit
+            ; -> overflow:
+            ; mov rax, QWORD vm::VMStruct::overflow_error as _
+            ; call rax
+            ; jmp >exit
+            ; -> io_error:
+            ; exit:
+            ; pop rdx
+            ; ret
+        );
         return Ok(*ops_ptr);
     }
 
